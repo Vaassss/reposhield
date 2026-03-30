@@ -1,0 +1,20 @@
+{
+  "static": {
+    "os.system":               {"id": "T1059", "name": "Command and Scripting Interpreter", "weight": 30},
+    "subprocess":              {"id": "T1059", "name": "Command and Scripting Interpreter", "weight": 30},
+    "eval(":                   {"id": "T1059", "name": "Command and Scripting Interpreter", "weight": 35},
+    "exec(":                   {"id": "T1059", "name": "Command and Scripting Interpreter", "weight": 35},
+    "base64.b64decode":        {"id": "T1027", "name": "Obfuscated Files or Information",   "weight": 25},
+    "socket.connect":          {"id": "T1071", "name": "Application Layer Protocol",        "weight": 30},
+    "__import__":              {"id": "T1059", "name": "Command and Scripting Interpreter", "weight": 25},
+    "compile(":                {"id": "T1027", "name": "Obfuscated Files or Information",   "weight": 20},
+    "ctypes":                  {"id": "T1055", "name": "Process Injection",                 "weight": 55},
+    "marshal.loads":           {"id": "T1027", "name": "Obfuscated Files or Information",   "weight": 30},
+    "pickle.loads":            {"id": "T1059", "name": "Command and Scripting Interpreter", "weight": 25},
+    "urllib.request":          {"id": "T1105", "name": "Ingress Tool Transfer",             "weight": 25},
+    "requests.get/post":       {"id": "T1071", "name": "Application Layer Protocol",        "weight": 20},
+    "os.environ manipulation": {"id": "T1574", "name": "Hijack Execution Flow",             "weight": 25},
+    "shutil.rmtree":           {"id": "T1485", "name": "Data Destruction",                  "weight": 40},
+    "open() write mode":       {"id": "T1105", "name": "Ingress Tool Transfer",             "weight": 15}
+  }
+}

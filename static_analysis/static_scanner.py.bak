@@ -1,0 +1,125 @@
+"""
+static_analysis/static_scanner.py
+Recursively scans Python files for suspicious code patterns.
+Each file gets a risk score so the AI layer can prioritize the riskiest ones.
+No code is executed — pure text analysis.
+"""
+
+import os
+import re
+from typing import List, Dict
+
+# Pattern name → (regex, weight)
+# Weight reflects how dangerous the pattern is
+SUSPICIOUS_PATTERNS = {
+    "os.system":               (r"os\.system\s*\(",                          30),
+    "subprocess":              (r"subprocess\.(call|run|Popen|check_output)\s*\(", 30),
+    "eval(":                   (r"\beval\s*\(",                              35),
+    "exec(":                   (r"\bexec\s*\(",                              35),
+    "base64.b64decode":        (r"base64\.b64decode\s*\(",                   25),
+    "socket.connect":          (r"\.connect\s*\(",                           30),
+    "__import__":              (r"__import__\s*\(",                          25),
+    "compile(":                (r"\bcompile\s*\(",                           20),
+    "ctypes":                  (r"\bctypes\b",                               55),
+    "marshal.loads":           (r"marshal\.loads\s*\(",                      30),
+    "pickle.loads":            (r"pickle\.loads\s*\(",                       25),
+    "urllib.request":          (r"urllib\.request",                          25),
+    "requests.get/post":       (r"requests\.(get|post|put|delete|patch)\s*\(", 20),
+    "os.environ manipulation": (r"os\.environ\s*[\[\.]",                     25),
+    "shutil.rmtree":           (r"shutil\.rmtree\s*\(",                      40),
+    "open() write mode":       (r"open\s*\(.*['\"]w['\"]",                   15),
+}
+
+SKIP_DIRS = {
+    "__pycache__", ".git", "node_modules",
+    ".tox", "venv", ".venv", "env", ".env",
+    "dist", "build", "eggs", ".eggs",
+}
+
+
+def _score_findings(findings: List[Dict]) -> int:
+    """Sum weights of all findings in a file. Cap at 100."""
+    total = 0
+    for f in findings:
+        pattern = f.get("pattern", "")
+        if pattern in SUSPICIOUS_PATTERNS:
+            total += SUSPICIOUS_PATTERNS[pattern][1]
+    return min(total, 100)
+
+
+def scan_file(filepath: str) -> List[Dict]:
+    """Scan one Python file. Returns list of finding dicts."""
+    findings = []
+    try:
+        with open(filepath, "r", encoding="utf-8", errors="replace") as f:
+            lines = f.readlines()
+    except Exception as e:
+        return [{"file": filepath, "line": 0,
+                 "pattern": "read_error", "snippet": str(e)}]
+
+    for lineno, line in enumerate(lines, start=1):
+        stripped = line.strip()
+        if stripped.startswith("#"):
+            continue
+        for pattern_name, (regex, _weight) in SUSPICIOUS_PATTERNS.items():
+            if re.search(regex, line):
+                findings.append({
+                    "file":    filepath,
+                    "line":    lineno,
+                    "pattern": pattern_name,
+                    "snippet": stripped[:200],
+                })
+    return findings
+
+
+def scan_repository(repo_path: str) -> Dict:
+    """
+    Walk repo_path and scan every .py file.
+    Returns structured dict with all findings AND per-file risk scores
+    so the AI layer can prioritize the riskiest files.
+    """
+    all_findings  = []
+    scanned_files = 0
+    pattern_counts = {}
+    file_scores   = []   # [{filepath, risk_score}] for AI prioritization
+
+    for root, dirs, files in os.walk(repo_path):
+        dirs[:] = [
+            d for d in dirs
+            if d not in SKIP_DIRS and not d.startswith(".")
+        ]
+        for fname in files:
+            if not fname.endswith(".py"):
+                continue
+            scanned_files += 1
+            fpath         = os.path.join(root, fname)
+            file_findings = scan_file(fpath)
+
+            # Per-pattern counts for report
+            for finding in file_findings:
+                p = finding.get("pattern")
+                pattern_counts[p] = pattern_counts.get(p, 0) + 1
+
+            all_findings.extend(file_findings)
+
+            # Per-file risk score for AI prioritization
+            file_risk = _score_findings(file_findings)
+            file_scores.append({
+                "filepath":   fpath,
+                "filename":   fname,
+                "risk_score": file_risk,
+                "findings":   len(file_findings),
+            })
+
+    print(
+        f"[static] Scanned {scanned_files} Python files. "
+        f"Findings: {len(all_findings)}"
+    )
+
+    return {
+        "scanned_files":  scanned_files,
+        "total_findings": len(all_findings),
+        "pattern_counts": pattern_counts,
+        "findings":       all_findings,
+        "file_scores":    file_scores,   # new — used by AI layer
+    }

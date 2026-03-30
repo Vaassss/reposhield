@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block title %}Sign In – RepoShield{% endblock %}
+{% block content %}
+<div class="auth-wrap">
+  <div class="auth-card">
+    <div class="auth-logo">
+      <svg width="38" height="38" viewBox="0 0 24 24" fill="none" stroke="#58a6ff" stroke-width="2" style="margin-bottom:10px">
+        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+      </svg>
+      <h1>RepoShield</h1>
+      <p>Automated Repository Threat Intelligence</p>
+    </div>
+
+    <form method="POST">
+      <div class="fg">
+        <label class="fl">Username or Email</label>
+        <input class="fc" type="text" name="identifier"
+               value="{{ identifier|default('') }}"
+               placeholder="you@example.com" required autofocus/>
+      </div>
+      <div class="fg">
+        <label class="fl">Password</label>
+        <input class="fc" type="password" name="password"
+               placeholder="••••••••" required/>
+      </div>
+      <div class="fg" style="display:flex;align-items:center;gap:8px">
+        <input type="checkbox" name="remember" id="rem"
+               style="accent-color:var(--acc);width:15px;height:15px"/>
+        <label for="rem" style="font-size:13px;color:var(--dim);cursor:pointer">Remember me</label>
+      </div>
+      <button type="submit" class="btn btn-primary"
+              style="width:100%;justify-content:center;padding:10px;font-size:14px">
+        Sign In
+      </button>
+    </form>
+
+    <div class="auth-foot">
+      Don't have an account? <a href="{{ url_for('auth.register') }}">Register</a>
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% block title %}New Scan – RepoShield{% endblock %}
+{% block content %}
+<div class="container" style="max-width:660px">
+  <div class="ph">
+    <h1>New Scan</h1>
+    <p>Analyze a repository via GitHub or upload your project.</p>
+  </div>
+
+  <div class="card">
+    <form method="POST" enctype="multipart/form-data">
+
+      <!-- GitHub Option -->
+      <div class="fg">
+        <label class="fl">GitHub Repository</label>
+        <input class="fc mono" type="text" name="repo_url"
+               placeholder="https://github.com/user/repo"
+               style="font-size:13px"/>
+      </div>
+
+      <div style="text-align:center;margin:12px 0;color:var(--dim)">OR</div>
+
+      <!-- Upload Option -->
+      <div class="fg">
+        <label class="fl">Upload Project (ZIP)</label>
+        <input class="fc" type="file" name="repo_file" accept=".zip"/>
+        <p style="font-size:12px;color:var(--dim);margin-top:5px">
+          Upload a zipped project folder for local analysis.
+        </p>
+      </div>
+
+      <!-- Pipeline info -->
+      <div style="background:rgba(88,166,255,.05);border:1px solid rgba(88,166,255,.15);border-radius:var(--r);padding:14px;margin-bottom:18px">
+        <p style="font-size:12px;font-weight:600;color:var(--acc);margin-bottom:8px">
+          Analysis Pipeline
+        </p>
+        <ul style="padding-left:16px;color:var(--dim);font-size:12px;line-height:2">
+          <li>Static code scanning</li>
+          <li>Dependency analysis</li>
+          <li>Graph-based behavior detection</li>
+          <li>AI-assisted prioritization</li>
+          <li>Risk scoring & reporting</li>
+        </ul>
+      </div>
+
+      <button type="submit" class="btn btn-primary"
+              style="width:100%;justify-content:center;padding:11px;font-size:14px">
+        Launch Analysis
+      </button>
+    </form>
+  </div>
+</div>
+{% endblock %}

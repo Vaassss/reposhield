@@ -1,0 +1,107 @@
+{% extends "base.html" %}
+{% block title %}Admin – RepoShield{% endblock %}
+{% block content %}
+<div class="container">
+  <div class="ph">
+    <h1>Admin Panel</h1>
+    <p>Platform overview and user management</p>
+  </div>
+
+  <!-- Platform stats -->
+  <div class="stats" style="grid-template-columns:repeat(6,1fr)">
+    <div class="stat"><div class="sv">{{ stats.total_users }}</div><div class="sl">Users</div></div>
+    <div class="stat"><div class="sv t-yellow">{{ stats.pending }}</div><div class="sl">Pending</div></div>
+    <div class="stat"><div class="sv t-green">{{ stats.active }}</div><div class="sl">Active</div></div>
+    <div class="stat"><div class="sv t-blue">{{ stats.total_scans }}</div><div class="sl">Total Scans</div></div>
+    <div class="stat"><div class="sv t-purple">{{ stats.critical_scans }}</div><div class="sl">Critical</div></div>
+    <div class="stat"><div class="sv t-yellow">{{ stats.running }}</div><div class="sl">Running</div></div>
+  </div>
+
+  <!-- Quick nav -->
+  <div class="row gap8 mb20">
+    <a href="{{ url_for('admin.users') }}" class="btn btn-ghost">Manage Users</a>
+    <a href="{{ url_for('admin.all_scans') }}" class="btn btn-ghost">All Scans</a>
+  </div>
+
+  <!-- Pending approvals -->
+  <div class="card mb16" style="border-color:{% if pending %}rgba(210,153,34,.35){% else %}rgba(63,185,80,.2){% endif %}">
+    <div class="ch">
+      <h2 style="color:{% if pending %}var(--yellow){% else %}var(--green){% endif %}">
+        {% if pending %}⏳ Pending Approvals ({{ pending|length }}){% else %}✓ No Pending Approvals{% endif %}
+      </h2>
+    </div>
+    {% if pending %}
+      {% for u in pending %}
+      <div class="pu-row">
+        <div>
+          <span style="font-weight:500;color:var(--bright)">{{ u.username }}</span>
+          <span class="t-dim" style="font-size:12px;margin-left:10px">{{ u.email }}</span>
+          <span class="t-dim" style="font-size:11px;margin-left:10px">
+            Registered {{ u.created_at.strftime('%b %d, %Y at %H:%M') }}
+          </span>
+        </div>
+        <div class="row gap8">
+          <form method="POST" action="{{ url_for('admin.approve', uid=u.id) }}">
+            <button class="btn btn-success btn-sm">Approve</button>
+          </form>
+          <form method="POST" action="{{ url_for('admin.delete_user', uid=u.id) }}"
+                onsubmit="return confirm('Reject and delete {{ u.username }}?')">
+            <button class="btn btn-danger btn-sm">Reject</button>
+          </form>
+        </div>
+      </div>
+      {% endfor %}
+    {% else %}
+    <p class="t-dim" style="font-size:13px">All registered users have been reviewed.</p>
+    {% endif %}
+  </div>
+
+  <!-- Recent scans — all users -->
+  <div class="card">
+    <div class="ch">
+      <h2>Recent Scans — All Users</h2>
+      <a href="{{ url_for('admin.all_scans') }}" style="font-size:12px;color:var(--acc);text-decoration:none">View all →</a>
+    </div>
+    {% if recent_scans %}
+    <div class="tw">
+      <table>
+        <thead>
+          <tr><th>#</th><th>User</th><th>Repository</th><th>Status</th><th>Risk</th><th>Score</th><th>Date</th></tr>
+        </thead>
+        <tbody>
+          {% for s in recent_scans %}
+          <tr>
+            <td class="mono t-dim">{{ s.id }}</td>
+            <td class="t-blue">{{ s.owner.username }}</td>
+            <td><span class="trunc" title="{{ s.repo_url }}">{{ s.repo_url }}</span></td>
+            <td>
+              {% if s.status == 'complete' %}<span class="sdot"><span class="dot d-green"></span> Complete</span>
+              {% elif s.status == 'failed'  %}<span class="sdot"><span class="dot d-red"></span> Failed</span>
+              {% else %}<span class="sdot"><span class="dot d-yellow"></span> {{ s.status|replace('_',' ')|title }}</span>{% endif %}
+            </td>
+            <td>
+              {% if s.classification == 'Critical' %}<span class="badge b-critical">Critical</span>
+              {% elif s.classification == 'High'   %}<span class="badge b-high">High</span>
+              {% elif s.classification == 'Medium' %}<span class="badge b-medium">Medium</span>
+              {% elif s.classification == 'Low'    %}<span class="badge b-low">Low</span>
+              {% else %}<span class="badge b-gray">—</span>{% endif %}
+            </td>
+            <td>
+              {% if s.risk_score is not none %}
+              <span class="mono" style="font-weight:600;color:{% if s.risk_score > 75 %}var(--purple){% elif s.risk_score > 50 %}var(--red){% elif s.risk_score > 25 %}var(--yellow){% else %}var(--green){% endif %}">
+                {{ s.risk_score }}/100
+              </span>
+              {% else %}—{% endif %}
+            </td>
+            <td class="t-dim">{{ s.created_at.strftime('%b %d, %Y %H:%M') }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <p class="t-dim" style="font-size:13px">No scans submitted yet.</p>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

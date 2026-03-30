@@ -1,0 +1,101 @@
+{% extends "base.html" %}
+{% block title %}Dashboard – RepoShield{% endblock %}
+{% block content %}
+<div class="container">
+
+  <div class="ph row jb">
+    <div>
+      <h1>Dashboard</h1>
+      <p>Welcome back, <strong>{{ current_user.username }}</strong>
+        {% if current_user.status == 'pending' %}— account pending admin approval{% endif %}
+      </p>
+    </div>
+    {% if current_user.status == 'active' %}
+    <a href="{{ url_for('scans.submit') }}" class="btn btn-primary">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+        <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+      </svg>
+      New Scan
+    </a>
+    {% endif %}
+  </div>
+
+  {% if current_user.status == 'pending' %}
+  <div class="alert alert-warning mb20">
+    Your account is awaiting admin approval. You can browse but cannot submit scans yet.
+  </div>
+  {% endif %}
+
+  <!-- Stats -->
+  <div class="stats">
+    <div class="stat"><div class="sv">{{ stats.total }}</div><div class="sl">Total Scans</div></div>
+    <div class="stat"><div class="sv t-green">{{ stats.complete }}</div><div class="sl">Completed</div></div>
+    <div class="stat"><div class="sv t-purple">{{ stats.critical }}</div><div class="sl">Critical</div></div>
+    <div class="stat"><div class="sv t-dim">{{ stats.failed }}</div><div class="sl">Failed</div></div>
+  </div>
+
+  <!-- Recent scans table -->
+  <div class="card">
+    <div class="ch">
+      <h2>Recent Scans</h2>
+      <a href="{{ url_for('scans.history') }}" style="font-size:12px;color:var(--acc);text-decoration:none">View all →</a>
+    </div>
+
+    {% if scans %}
+    <div class="tw">
+      <table>
+        <thead>
+          <tr>
+            <th>#</th><th>Repository</th><th>Status</th>
+            <th>Risk</th><th>Score</th><th>MITRE TTPs</th><th>Date</th><th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for s in scans %}
+          <tr>
+            <td class="mono t-dim">{{ s.id }}</td>
+            <td><span class="trunc" title="{{ s.repo_url }}">{{ s.repo_url }}</span></td>
+            <td>
+              {% if s.status == 'complete' %}<span class="sdot"><span class="dot d-green"></span> Complete</span>
+              {% elif s.status == 'failed'  %}<span class="sdot"><span class="dot d-red"></span> Failed</span>
+              {% else %}<span class="sdot"><span class="dot d-yellow"></span> {{ s.status|replace('_',' ')|title }}</span>
+              {% endif %}
+            </td>
+            <td>
+              {% if s.classification == 'Critical' %}<span class="badge b-critical">Critical</span>
+              {% elif s.classification == 'High'   %}<span class="badge b-high">High</span>
+              {% elif s.classification == 'Medium' %}<span class="badge b-medium">Medium</span>
+              {% elif s.classification == 'Low'    %}<span class="badge b-low">Low</span>
+              {% else %}<span class="badge b-gray">—</span>{% endif %}
+            </td>
+            <td>
+              {% if s.risk_score is not none %}
+              <span class="mono" style="font-weight:600;color:{% if s.risk_score > 75 %}var(--purple){% elif s.risk_score > 50 %}var(--red){% elif s.risk_score > 25 %}var(--yellow){% else %}var(--green){% endif %}">
+                {{ s.risk_score }}/100
+              </span>
+              {% else %}—{% endif %}
+            </td>
+            <td class="mono t-dim">{{ s.mitre_count if s.mitre_count is not none else '—' }}</td>
+            <td class="t-dim">{{ s.created_at.strftime('%b %d, %Y') }}</td>
+            <td><a href="{{ url_for('scans.detail', scan_id=s.id) }}" class="btn btn-ghost btn-sm">View</a></td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="empty">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+      </svg>
+      <h3>No scans yet</h3>
+      <p>{% if current_user.status == 'active' %}Submit a GitHub repository URL to run your first analysis.{% else %}Once approved, you'll be able to start scanning.{% endif %}</p>
+      {% if current_user.status == 'active' %}
+      <a href="{{ url_for('scans.submit') }}" class="btn btn-primary mt12">Run first scan</a>
+      {% endif %}
+    </div>
+    {% endif %}
+  </div>
+
+</div>
+{% endblock %}

@@ -1,0 +1,154 @@
+{% extends "base.html" %}
+{% block title %}Scan #{{ scan.id }} – RepoShield{% endblock %}
+{% block content %}
+<div class="container">
+
+  <!-- HEADER -->
+  <div class="ph row jb">
+    <div>
+      <h1>Scan #{{ scan.id }}</h1>
+      <p class="mono t-dim" style="font-size:11px">{{ scan.repo_url }}</p>
+    </div>
+
+    <div class="row gap8">
+      <a href="{{ url_for('scans.history') }}" class="btn btn-ghost btn-sm">← Back</a>
+
+      {% if scan.report_json %}
+      <a href="{{ url_for('scans.download', scan_id=scan.id) }}" class="btn btn-ghost btn-sm">⬇ Download JSON</a>
+      {% endif %}
+
+      <form method="POST" action="{{ url_for('scans.delete', scan_id=scan.id) }}">
+        <button class="btn btn-danger btn-sm">Delete</button>
+      </form>
+    </div>
+  </div>
+
+  {% if report %}
+  {% set rr = report.reposhield_report %}
+  {% set ra = rr.risk_assessment %}
+
+  <!-- SCORE -->
+  <div class="card" style="margin-bottom:16px">
+    <h2>Risk Score: {{ ra.unified_score }} ({{ ra.classification }})</h2>
+    <p>{{ rr.executive_summary }}</p>
+  </div>
+
+  <!-- GRAPH CONTROLS -->
+  <div class="card" style="margin-bottom:16px">
+    <h2>3D Attack Graph</h2>
+
+    <div style="margin-bottom:10px">
+      <button onclick="loadGraph('critical')" class="btn btn-danger btn-sm">Critical</button>
+      <button onclick="loadGraph('secondary')" class="btn btn-ghost btn-sm">Secondary</button>
+      <button onclick="playAnimation()" class="btn btn-sm">▶ Play</button>
+    </div>
+
+    <div id="graph-3d" style="height:400px;background:#000;border-radius:8px"></div>
+  </div>
+
+  <!-- NODE INSPECTOR -->
+  <div class="card">
+    <h2>Node Inspector</h2>
+    <div id="node-info">Click a node</div>
+    <pre id="node-code"></pre>
+  </div>
+
+  <!-- STATIC FINDINGS -->
+  <div class="card">
+    <h2>Static Findings</h2>
+    <pre>{{ rr.static_analysis }}</pre>
+  </div>
+
+  <!-- AI ANALYSIS -->
+  <div class="card">
+    <h2>AI Analysis</h2>
+    <pre>{{ rr.ai_analysis }}</pre>
+  </div>
+
+  {% else %}
+  <!-- LOADING -->
+  <div class="card">
+    <h2>Scanning in progress...</h2>
+    <p>Please wait while analysis completes.</p>
+  </div>
+  {% endif %}
+
+</div>
+
+<!-- GRAPH SCRIPT -->
+<script src="https://unpkg.com/3d-force-graph"></script>
+
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+
+    const graphData = {{ graph_data | tojson | safe }};
+
+    function buildGraph(type) {
+        if (!graphData || !graphData[type]) return { nodes: [], links: [] };
+
+        let nodes = [];
+        let links = [];
+        let map = {};
+        let id = 1;
+
+        graphData[type].forEach(p => {
+            let path = p.path || [];
+
+            for (let i = 0; i < path.length; i++) {
+                let label = typeof path[i] === "string" ? path[i] : path[i].label;
+
+                if (!map[label]) {
+                    map[label] = id;
+                    nodes.push({ id: id, name: label, raw: path[i] });
+                    id++;
+                }
+
+                if (i > 0) {
+                    let prev = typeof path[i - 1] === "string" ? path[i - 1] : path[i - 1].label;
+
+                    links.push({
+                        source: map[prev],
+                        target: map[label]
+                    });
+                }
+            }
+        });
+
+        return { nodes, links };
+    }
+
+    function loadGraph(type) {
+        const data = buildGraph(type);
+
+        if (!data.nodes.length) {
+            console.warn("No graph data available");
+            return;
+        }
+
+        const container = document.getElementById("graph-3d");
+        container.innerHTML = "";
+
+        const graph = ForceGraph3D()(container)
+            .graphData(data)
+            .nodeLabel(n => n.name)
+            .onNodeClick(node => {
+                const d = node.raw || {};
+                document.getElementById("node-info").innerHTML =
+                    `<b>${node.name}</b><br>${d.file || ""}`;
+                document.getElementById("node-code").textContent =
+                    d.snippet || "";
+            });
+    }
+
+    function playAnimation() {
+        loadGraph("critical");
+    }
+
+    window.loadGraph = loadGraph;
+    window.playAnimation = playAnimation;
+
+    setTimeout(() => loadGraph("critical"), 500);
+});
+</script>
+
+{% endblock %}
