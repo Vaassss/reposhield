@@ -3,21 +3,18 @@
 {% block content %}
 <div class="container">
 
-  <!-- HEADER -->
   <div class="ph row jb">
     <div>
       <h1>Scan #{{ scan.id }}</h1>
       <p class="mono t-dim" style="font-size:11px">{{ scan.repo_url }}</p>
     </div>
-
     <div class="row gap8">
       <a href="{{ url_for('scans.history') }}" class="btn btn-ghost btn-sm">← Back</a>
-
       {% if scan.report_json %}
-      <a href="{{ url_for('scans.download', scan_id=scan.id) }}" class="btn btn-ghost btn-sm">⬇ Download JSON</a>
+      <a href="{{ url_for('scans.download', scan_id=scan.id) }}" class="btn btn-ghost btn-sm">⬇ JSON</a>
       {% endif %}
-
-      <form method="POST" action="{{ url_for('scans.delete', scan_id=scan.id) }}">
+      <form method="POST" action="{{ url_for('scans.delete', scan_id=scan.id) }}"
+            onsubmit="return confirm('Delete this scan?')">
         <button class="btn btn-danger btn-sm">Delete</button>
       </form>
     </div>
@@ -27,128 +24,111 @@
   {% set rr = report.reposhield_report %}
   {% set ra = rr.risk_assessment %}
 
-  <!-- SCORE -->
-  <div class="card" style="margin-bottom:16px">
-    <h2>Risk Score: {{ ra.unified_score }} ({{ ra.classification }})</h2>
-    <p>{{ rr.executive_summary }}</p>
+  <!-- ================= GRAPH ================= -->
+  <div class="card" style="margin-bottom:14px">
+    <div class="ch">
+      <h2>Attack graph</h2>
+      <div class="row gap8">
+        <button onclick="loadGraph('critical')"  class="btn btn-danger btn-sm">Critical paths</button>
+        <button onclick="loadGraph('secondary')" class="btn btn-ghost btn-sm">Secondary</button>
+      </div>
+    </div>
+    <div id="graph-3d" style="height:360px;background:#0a0e14;border-radius:6px;border:1px solid var(--bord)"></div>
   </div>
 
-  <!-- GRAPH CONTROLS -->
-  <div class="card" style="margin-bottom:16px">
-    <h2>3D Attack Graph</h2>
-
-    <div style="margin-bottom:10px">
-      <button onclick="loadGraph('critical')" class="btn btn-danger btn-sm">Critical</button>
-      <button onclick="loadGraph('secondary')" class="btn btn-ghost btn-sm">Secondary</button>
-      <button onclick="playAnimation()" class="btn btn-sm">▶ Play</button>
+  <!-- ================= CROSS-FILE ATTACK CHAINS ================= -->
+  {% if rr.cross_file_analysis is defined and rr.cross_file_analysis.total_chains > 0 %}
+  <div class="card" style="margin-bottom:14px;border-color:rgba(139,87,229,.3)">
+    <div class="ch">
+      <h2 style="color:var(--purple)">⚠ Cross-file attack chains</h2>
+      <span class="badge b-critical">{{ rr.cross_file_analysis.total_chains }} chain{{ 's' if rr.cross_file_analysis.total_chains != 1 }}</span>
     </div>
 
-    <div id="graph-3d" style="height:400px;background:#000;border-radius:8px"></div>
-  </div>
+    {% for chain in rr.cross_file_analysis.chains_found %}
+    <div style="margin-bottom:16px;padding:14px;background:rgba(139,87,229,.06);border:1px solid rgba(139,87,229,.2);border-radius:var(--r)">
+      
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+        <strong style="color:var(--purple)">{{ chain.name }}</strong>
+        <span class="badge {% if chain.severity == 'critical' %}b-critical{% else %}b-high{% endif %}">
+          {{ chain.severity }}
+        </span>
+      </div>
 
-  <!-- NODE INSPECTOR -->
-  <div class="card">
-    <h2>Node Inspector</h2>
-    <div id="node-info">Click a node</div>
-    <pre id="node-code"></pre>
-  </div>
+      <p style="font-size:12px;color:var(--dim);margin-bottom:10px">
+        {{ chain.description }}
+      </p>
 
-  <!-- STATIC FINDINGS -->
-  <div class="card">
-    <h2>Static Findings</h2>
-    <pre>{{ rr.static_analysis }}</pre>
-  </div>
+      <div style="display:flex;flex-wrap:wrap;align-items:center;gap:6px">
+        {% for step in chain.files %}
+          <span class="badge b-orange">{{ step.filename }}</span>
+          <span style="font-size:11px;color:var(--purple)">→ {{ step.action }}</span>
+          {% if not loop.last %}<span class="t-dim">→</span>{% endif %}
+        {% endfor %}
+      </div>
 
-  <!-- AI ANALYSIS -->
-  <div class="card">
-    <h2>AI Analysis</h2>
-    <pre>{{ rr.ai_analysis }}</pre>
-  </div>
-
-  {% else %}
-  <!-- LOADING -->
-  <div class="card">
-    <h2>Scanning in progress...</h2>
-    <p>Please wait while analysis completes.</p>
+    </div>
+    {% endfor %}
   </div>
   {% endif %}
 
+  <!-- ================= DYNAMIC ANALYSIS ================= -->
+  {% if rr.dynamic_analysis and rr.dynamic_analysis.files_executed > 0 %}
+  <div class="card">
+    <div class="ch">
+      <h2>Dynamic analysis</h2>
+      <span class="mono" style="font-size:12px;color:
+        {%- if rr.dynamic_analysis.dynamic_score > 50 %}var(--red)
+        {%- elif rr.dynamic_analysis.dynamic_score > 20 %}var(--yellow)
+        {%- else %}var(--dim){% endif %}">
+        score {{ rr.dynamic_analysis.dynamic_score }}
+      </span>
+    </div>
+  </div>
+  {% endif %}
+
+  {% endif %}
 </div>
 
-<!-- GRAPH SCRIPT -->
 <script src="https://unpkg.com/3d-force-graph"></script>
-
 <script>
-document.addEventListener("DOMContentLoaded", function () {
+(function(){
+  const graphData = {{ graph_data | tojson | safe }};
 
-    const graphData = {{ graph_data | tojson | safe }};
-
-    function buildGraph(type) {
-        if (!graphData || !graphData[type]) return { nodes: [], links: [] };
-
-        let nodes = [];
-        let links = [];
-        let map = {};
-        let id = 1;
-
-        graphData[type].forEach(p => {
-            let path = p.path || [];
-
-            for (let i = 0; i < path.length; i++) {
-                let label = typeof path[i] === "string" ? path[i] : path[i].label;
-
-                if (!map[label]) {
-                    map[label] = id;
-                    nodes.push({ id: id, name: label, raw: path[i] });
-                    id++;
-                }
-
-                if (i > 0) {
-                    let prev = typeof path[i - 1] === "string" ? path[i - 1] : path[i - 1].label;
-
-                    links.push({
-                        source: map[prev],
-                        target: map[label]
-                    });
-                }
-            }
-        });
-
-        return { nodes, links };
-    }
-
-    function loadGraph(type) {
-        const data = buildGraph(type);
-
-        if (!data.nodes.length) {
-            console.warn("No graph data available");
-            return;
+  function buildGraph(type) {
+    const paths = graphData[type] || [];
+    let nodes=[], links=[], map={}, id=1;
+    paths.forEach(p => {
+      (p.path||[]).forEach((node,i) => {
+        const label = typeof node==="string" ? node : (node.label||"?");
+        if(!map[label]){
+          map[label]=id;
+          nodes.push({id:id,name:label,raw:node,verdict:p.type});
+          id++;
         }
+        if(i>0){
+          const prev = typeof p.path[i-1]==="string" ? p.path[i-1] : p.path[i-1].label;
+          links.push({source:map[prev],target:map[label]});
+        }
+      });
+    });
+    return {nodes,links};
+  }
 
-        const container = document.getElementById("graph-3d");
-        container.innerHTML = "";
-
-        const graph = ForceGraph3D()(container)
-            .graphData(data)
-            .nodeLabel(n => n.name)
-            .onNodeClick(node => {
-                const d = node.raw || {};
-                document.getElementById("node-info").innerHTML =
-                    `<b>${node.name}</b><br>${d.file || ""}`;
-                document.getElementById("node-code").textContent =
-                    d.snippet || "";
-            });
+  window.loadGraph = function(type){
+    const data = buildGraph(type);
+    const container = document.getElementById("graph-3d");
+    container.innerHTML="";
+    if(!data.nodes.length){
+      container.innerHTML='No graph data';
+      return;
     }
+    ForceGraph3D()(container).graphData(data);
+  };
 
-    function playAnimation() {
-        loadGraph("critical");
-    }
-
-    window.loadGraph = loadGraph;
-    window.playAnimation = playAnimation;
-
-    setTimeout(() => loadGraph("critical"), 500);
-});
+  document.addEventListener("DOMContentLoaded",function(){
+    setTimeout(()=>window.loadGraph("critical"),400);
+  });
+})();
 </script>
 
 {% endblock %}

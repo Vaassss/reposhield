@@ -6,6 +6,7 @@ UPGRADED:
 - Dominant signal override
 - Execution-aware escalation
 - Chain-based critical detection
+- Cross-file chain boost
 """
 
 import os, sys
@@ -60,6 +61,7 @@ def calculate_score(
     total_findings:    int,
     packages_analysed: int,
     dynamic_score:     float = 0,
+    cross_file_chains: int = 0,   # 🔥 NEW PARAM
 ) -> Tuple[int, str, int]:
 
     # --- Static baseline ---
@@ -71,7 +73,7 @@ def calculate_score(
     if ai_ran:
         base_score = (
             (static_raw * 0.25) +
-            (ai_score * 0.35) +   # ↑ AI weight increased
+            (ai_score * 0.35) +
             (dep_risk_score * 0.15)
         )
     else:
@@ -97,7 +99,6 @@ def calculate_score(
     # -----------------------------
     # 🔥 DOMINANT SIGNAL OVERRIDE
     # -----------------------------
-
     found_ids = {t["technique_id"] for t in static_ttps}
 
     # --- Rule 1: AI malicious override ---
@@ -119,6 +120,13 @@ def calculate_score(
     # --- Rule 5: Critical techniques ---
     if found_ids & CRITICAL_TECHNIQUES:
         final = max(final, 90)
+
+    # -----------------------------
+    # 🔥 CROSS-FILE CHAIN BOOST (NEW)
+    # -----------------------------
+    if cross_file_chains > 0:
+        final = max(final, 70)
+        final += min(cross_file_chains * 5, 15)
 
     # -----------------------------
     # Normalize
@@ -154,6 +162,7 @@ def calculate_score(
     print(
         f"[score] Static={static_raw:.0f} AI={ai_score:.0f} "
         f"Dep={dep_risk_score:.0f} Dyn={dynamic_score:.0f} "
+        f"Chains={cross_file_chains} "
         f"Factor={dynamic_factor:.2f} -> Final={final} "
         f"[{classification}] Confidence={confidence}%"
     )
